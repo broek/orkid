@@ -1,0 +1,51 @@
+##### **Cloning of the ORANGE knockin construct**   
+
+**1. Dissolve target primers to 100 µM in H<sub>2</sub>O or TE buffer**   
+
+**2. Digest plasmid (pORANGE, pOC1, pOC2, pOC3, pOC4, or pOC5) with BbsI**  
+
+**3. Anneal target primer pair**    
+- combine:    
+        - 5 µl oligo 1 (100 µM)   
+        - 5 µl oligo 2 (100 µM)    
+        - 2 µl buffer (for example Tango or NEB3 buffer)    
+        - 8 µl H<sub>2</sub>O     
+        -----------------+    
+         20 µl    
+        
+* Incubate at 98<sup>o</sup>C for 4 min. 
+* Incubate at RT for 15 min.
+* Incubate at 4<sup>o</sup>C for 10-15 min.
+* Dilute 1 μl oligos in 250 μl H<sub>2</sub>O      
+* Vortex and immediately take 1 μl from this 250x diluted stock and add to 8 μl H<sub>2</sub>O + 1 μl 10x NEB3 buffer     
+  (final dilution 2,500x)
+
+**4. Ligation of annealed target primers into ORANGE plasmid**
+- Prepare ligation mix:  
+        - 4 μl annealed oligos (2,500x dilution)   
+        - 25 ng plasmid digested with BbsI (from step 2)   
+        - 1 μl T4 ligase   
+        - 2 μl T4 ligase buffer  
+        - .. µl H<sub>2</sub>O   
+        -----------------+    
+        20 µl    
+
+- Incubate at RT for 5 – 60 minutes
+- Transform 5 μl ligation in 50 μl competent bacteria
+- Grow O/N at 37<sup>o</sup>C
+- Screen and select colonies that contain the target sequence via digestion / sequencing. Optional sequencing primers:     
+        forward: 5’ AAGGCTGTTAGAGAGATAATTGGAA  3’       
+        reverse: 5’ CGGGCCATTTACCGTAAGTT  3’    
+- This the intermediate ORANGE construct   
+
+**4. PCR amplify donor sequence and ligate into intermediate ORANGE construct**
+
+- Perform a PCR using the donor primers to produce the donor fragment. Note: A standard PCR protocol is fine. However, since the initial binding part of the primers has a lower melting temperature compared to full end product, we advise to use a PCR program with a higher annealing temperature towards that later cycles.
+- Digest the donor PCR and intermediate construct with HindIII and XhoI.
+- Ligate the digested donor into the digested intermediate construct
+- Screen colonies for the correct construct
+
+
+
+
+
