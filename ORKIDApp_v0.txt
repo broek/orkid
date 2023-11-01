@@ -1,0 +1,674 @@
+import os, io, random
+import string
+import numpy as np
+
+from Bio.Seq import Seq
+from Bio.Align import MultipleSeqAlignment
+from Bio import AlignIO, SeqIO
+from Bio.SeqRecord import SeqRecord
+
+import panel as pn
+import panel.widgets as pnw
+pn.extension()
+import panel as pn
+from panel.interact import interact
+pn.extension()
+pn.extension(notifications=True)
+
+
+import math
+import re
+import pandas as pd
+import panel as pn
+
+from bokeh.plotting import figure
+from bokeh.models import ColumnDataSource, Plot, Grid, Range1d
+from bokeh.models.glyphs import Text, Rect
+from bokeh.layouts import gridplot
+from bokeh.resources import INLINE
+
+"""
+Define variables  
+"""
+
+# plasmids with 5' overhang for gRNA primers
+plasmids = {'pORANGE':'CACCG',
+             'pOC1':'TTGTG', 
+             'pOC2':'TTGTG',
+             'pOC3':'TTGTG',
+             'pOC4':'TTGTG'}
+
+# restriction sites
+restrictionSites = {'HindIII':'AAGCTT',
+                    'XhoI': 'CTCGAG'}
+                    
+# integration
+location = {'N-terminal': 1,
+            'internal': 2,
+            'C-terminal':3}
+
+# donorTag sequences:
+donorTags = {'GFP' :'GTGAGCAAGGGCGAGGAGCTGTTCACCGGGGTGGTGCCCATCCTGGTCGAGCTGGACGGCGACGTAAACGGCCACAAGTTCAGCGTGTCCGGCGAGGGCGAGGGCGATGCCACCTACGGCAAGCTGACCCTGAAGTTCATCTGCACCACCGGCAAGCTGCCCGTGCCCTGGCCCACCCTCGTGACCACCCTGACCTACGGCGTGCAGTGCTTCAGCCGCTACCCCGACCACATGAAGCAGCACGACTTCTTCAAGTCCGCCATGCCCGAAGGCTACGTCCAGGAGCGCACCATCTTCTTCAAGGACGACGGCAACTACAAGACCCGCGCCGAGGTGAAGTTCGAGGGCGACACCCTGGTGAACCGCATCGAGCTGAAGGGCATCGACTTCAAGGAGGACGGCAACATCCTGGGGCACAAGCTGGAGTACAACTACAACAGCCACAACGTCTATATCATGGCCGACAAGCAGAAGAACGGCATCAAGGTGAACTTCAAGATCCGCCACAACATCGAGGACGGCAGCGTGCAGCTCGCCGACCACTACCAGCAGAACACCCCCATCGGCGACGGCCCCGTGCTGCTGCCCGACAACCACTACCTGAGCACCCAGTCCGCCCTGAGCAAAGACCCCAACGAGAAGCGCGATCACATGGTCCTGCTGGAGTTCGTGACCGCCGCCGGGATCACTCTCGGCATGGACGAGCTGTACAAG',
+            'mNeonGreen': 'GTGAGCAAGGGCGAGGAGGATAACATGGCCTCTCTCCCAGCGACACATGAGTTACACATCTTTGGCTCCATCAACGGTGTGGACTTTGACATGGTGGGTCAGGGCACCGGCAATCCAAATGATGGTTATGAGGAGTTAAACCTGAAGTCCACCAAGGGTGACCTCCAGTTCTCCCCCTGGATTCTGGTCCCTCATATCGGGTATGGCTTCCATCAGTACCTGCCCTACCCTGACGGGATGTCGCCTTTCCAGGCCGCCATGGTAGATGGCTCCGGATACCAAGTCCATCGCACAATGCAGTTTGAAGATGGTGCCTCCCTTACTGTTAACTACCGCTACACCTACGAGGGAAGCCACATCAAAGGAGAGGCCCAGGTGAAGGGGACTGGTTTCCCTGCTGACGGTCCTGTGATGACCAACTCGCTGACCGCTGCGGACTGGTGCAGGTCGAAGAAGACTTACCCCAACGACAAAACCATCATCAGTACCTTTAAGTGGAGTTACACCACTGGAAATGGCAAGCGCTACCGGAGCACTGCGCGGACCACCTACACCTTTGCCAAGCCAATGGCGGCTAACTATCTGAAGAACCAGCCGATGTACGTGTTCCGTAAGACGGAGCTCAAGCACTCCAAGACCGAGCTCAACTTCAAGGAGTGGCAAAAGGCCTTTACCGATGTGATGGGCATGGACGAGCTGTACAAG',
+
+             'HaloTag':'GCAGAAATCGGTACTGGCTTTCCATTCGACCCCCATTATGTGGAAGTCCTGGGCGAGCGCATGCACTACGTCGATGTTGGTCCGCGCGATGGCACCCCTGTGCTGTTCCTGCACGGTAACCCGACCTCCTCCTACGTGTGGCGCAACATCATCCCGCATGTTGCACCGACCCATCGCTGCATTGCTCCAGACCTGATCGGTATGGGCAAATCCGACAAACCAGACCTGGGTTATTTCTTCGACGACCACGTCCGCTTCATGGATGCCTTCATCGAAGCCCTGGGTCTGGAAGAGGTCGTCCTGGTCATTCACGACTGGGGCTCCGCTCTGGGTTTCCACTGGGCCAAGCGCAATCCAGAGCGCGTCAAAGGTATTGCATTTATGGAGTTCATCCGCCCTATCCCGACCTGGGACGAATGGCCAGAATTTGCCCGCGAGACCTTCCAGGCCTTCCGCACCACCGACGTCGGCCGCAAGCTGATCATCGATCAGAACGTTTTTATCGAGGGTACGCTGCCGATGGGTGTCGTCCGCCCGCTGACTGAAGTCGAGATGGACCATTACCGCGAGCCGTTCCTGAATCCTGTTGACCGCGAGCCACTGTGGCGCTTCCCAAACGAGCTGCCAATCGCCGGTGAGCCAGCGAACATCGTCGCGCTGGTCGAAGAATACATGGACTGGCTGCACCAGTCCCCTGTCCCGAAGCTGCTGTTCTGGGGCACCCCAGGCGTTCTGATCCCACCGGCCGAAGCCGCTCGCCTGGCCAAAAGCCTGCCTAACTGCAAGGCTGTGGACATCGGCCCGGGTCTGAATCTGCTGCAAGAAGACAACCCGGACCTGATCGGCAGCGAGATCGCGCGCTGGCTGTCcACGCTCGAGATTTCCGGC',
+             'HA': 'TACCCATACGATGTTCCAGATTACGCT',
+             '3xHA': 'TACCCATACGATGTTCCAGATTACGCTGGCTATCCCTATGACGTCCCGGACTATGCAGGATCCTATCCATATGACGTTCCAGATTACGCT',
+             'smFP-HA': 'TACCCTTATGATGTGCCCGATTATGCTGGCTACCCTTATGATGTTCCTGATTACGCCGGATATCCGTATGACGTGCCAGACTACGCGGGAGGTGTGAGCAAGGGAGAGGAGTTGTTTACCGGCGTGGTCCCCATACTGGTGGAGTTGGATGGCGACGTTAATGGACATAAATTCTCGGTCCGCGGCGAGGGAGAGGGAGACGCCACCAATGGCAAGCTGACGCTTAAGTTCATTTGCACGACTGGAAAATTGCCTGTCCCCTGGCCGACCCTGGTCACCACACTGGGCGGAGGAGTGCAGTGCTTCTCCCGTTACCCAGACCACATGAAGCAGCACGATTTCTTCAAGAGCGCAATGCCGGAGGGATACGTGCAAGAACGGACTATTTCCTTCAAGGATGACGGAACCTATAAGACCCGTGCGGAGGTCAAATTCGAGGGTGACACCCTGGTGAACCGAATTGAACTCAAAGGAATCGATTTCAAGGAGGATGGAAATATTCTGGGTCACAAGCTGGAATACAACTTCAACAGCCATAATGTGTACATTACGGCTGATAAGCAGAAGAACGGCATTAAGGCCAATTTCAAGATCCGCCACAACGTTGAGGGTGGATATCCCTACGACGTGCCCGATTATGCGGGCGGATATCCGTATGATGTTCCAGATTATGCTGGTGGTGGAGGCTATCCCTATGATGTCCCCGACTACGCCGGAGGTTACCCATACGACGTGCCCGACTACGCTGGAGGCGATGGCAGCGTGCAGCTGGCAGATCATTATCAACAGAATACCCCCATAGGTGATGGCCCCGTTCTGCTTCCAGATAATCACTACCTTTCCACCCAGAGCGTGCTTTCGAAAGACCCGAACGAAAAGCGTGATCACATGGTCCTGCTGGAGTTTGTGACCGCGGCTGGAATCACCCTGGGTATGGACGAACTCTACAAGGGTGGCTACCCCTACGATGTGCCGGATTACGCTGGATATCCGTATGACGTACCGGACTATGCCGGTTACCCGTACGATGTCCCGGACTACGCTTCAACCGGTAGC',
+             'mCherry': 'GTGAGCAAGGGCGAGGAGGATAACATGGCCATCATCAAGGAGTTCATGCGCTTCAAGGTGCACATGGAGGGCTCCGTGAACGGCCACGAGTTCGAGATCGAGGGCGAGGGCGAGGGCCGCCCCTACGAGGGCACCCAGACCGCCAAGCTGAAGGTGACCAAGGGTGGCCCCCTGCCCTTCGCCTGGGACATCCTGTCCCCTCAGTTCATGTACGGCTCCAAGGCCTACGTGAAGCACCCCGCCGACATCCCCGACTACTTGAAGCTGTCCTTCCCCGAGGGCTTCAAGTGGGAGCGCGTGATGAACTTCGAGGACGGCGGCGTGGTGACCGTGACCCAGGACTCCTCCCTGCAGGACGGCGAGTTCATCTACAAGGTGAAGCTGCGCGGCACCAACTTCCCCTCCGACGGCCCCGTAATGCAGAAGAAGACCATGGGCTGGGAGGCCTCCTCCGAGCGGATGTACCCCGAGGACGGCGCCCTGAAGGGCGAGATCAAGCAGAGGCTGAAGCTGAAGGACGGCGGCCACTACGACGCTGAGGTCAAGACCACCTACAAGGCCAAGAAGCCCGTGCAGCTGCCCGGCGCCTACAACGTCAACATCAAGTTGGACATCACCTCCCACAACGAGGACTACACCATCGTGGAACAGTACGAACGCGCCGAGGGCCGCCACTCCACCGGCGGCATGGACGAGCTGTAC',
+             'mRuby3': 'GTGTCTAAGGGCGAAGAGCTGATCAAGGAAAATATGCGTATGAAGGTGGTCATGGAAGGTTCGGTCAACGGCCACCAATTCAAATGCACAGGTGAAGGAGAAGGCAGACCGTACGAGGGAGTGCAAACCATGAGGATCAAAGTCATCGAGGGAGGACCCCTGCCATTTGCCTTTGACATTCTTGCCACGTCGTTCATGTATGGCAGCCGTACCTTTATCAAGTACCCGGCCGACATCCCTGATTTCTTTAAACAGTCCTTTCCTGAGGGTTTTACTTGGGAAAGAGTTACGAGATACGAAGATGGTGGAGTCGTCACCGTCACGCAGGACACCAGCCTTGAGGATGGCGAGCTCGTCTACAACGTCAAGGTCAGAGGGGTAAACTTTCCCTCCAATGGTCCCGTGATGCAGAAGAAGACCAAGGGTTGGGAGCCTAATACAGAGATGATGTATCCAGCAGATGGTGGTCTGAGAGGATACACTGACATCGCACTGAAAGTTGATGGTGGTGGCCATCTGCACTGCAACTTCGTGACAACTTACAGGTCAAAAAAGACCGTCGGGAACATCAAGATGCCCGGTGTCCATGCCGTTGATCACCGCCTGGAAAGGATCGAGGAGAGTGACAATGAAACCTACGTAGTGCAAAGAGAAGTGGCAGTTGCCAAATACAGCAACCTTGGTGGTGGCATGGACGAGCTGTACAAG',
+             'P2A-Cre-STOP':'GGTTCCGGAGCCACGAACTTCTCTCTCTTGAAGCAAGCAGGAGACGTGGAAGAGAATCCAGGACCTGGCAAGAAGAAGAGGAAGGTGTCCAATTTACTGACCGTACACCAAAATTTGCCTGCATTACCGGTCGATGCAACGAGTGATGAGGTTCGCAAGAACCTGATGGACATGTTCAGGGATCGCCAGGCGTTTTCTGAGCATACCTGGAAAATGCTTCTGTCCGTTTGCCGGTCGTGGGCGGCATGGTGCAAGTTGAATAACCGGAAATGGTTTCCCGCAGAACCTGAAGATGTTCGCGATTATCTTCTATATCTTCAGGCGCGCGGTCTGGCAGTAAAAACTATCCAGCAACATTTGGGCCAGCTAAACATGCTTCATCGTCGGTCCGGGCTGCCACGACCAAGTGACAGCAATGCTGTTTCACTGGTTATGCGGCGGATCCGAAAAGAAAACGTTGATGCCGGTGAACGTGCAAAACAGGCTCTAGCGTTCGAACGCACTGATTTCGACCAGGTTCGTTCACTCATGGAAAATAGCGATCGCTGCCAGGATATACGTAATCTGGCATTTCTGGGGATTGCTTATAACACCCTGTTACGTATAGCCGAAATTGCCAGGATCAGGGTTAAAGATATCTCACGTACTGACGGTGGGAGAATGTTAATCCATATTGGCAGAACGAAAACGCTGGTTAGCACCGCAGGTGTAGAGAAGGCACTTAGCCTGGGGGTAACTAAACTGGTCGAGCGATGGATTTCCGTCTCTGGTGTAGCTGATGATCCGAATAACTACCTGTTTTGCCGGGTCAGAAAAAATGGTGTTGCCGCGCCATCTGCCACCAGCCAGCTATCAACTCGCGCCCTGGAAGGGATTTTTGAAGCAACTCATCGATTGATTTACGGCGCTAAGGATGACTCTGGTCAGAGATACCTGGCCTGGTCTGGACACAGTGCCCGTGTCGGAGCCGCGCGAGATATGGCCCGCGCTGGAGTTTCAATACCGGAGATCATGCAAGCTGGTGGCTGGACCAATGTAAATATTGTCATGAACTATATCCGTAACCTGGATAGTGAAACAGGGGCAATGGTGCGCCTGCTGGAAGATGGCGATTAGAGCGCTTGA'
+             }
+
+linkers = {'no linker': '',
+            'GSG':' GGTAGCGGC',
+            'GASGSGSSRSG': 'GGCGCTAGCGGTAGCGGCTCCAGTAGATCTGGG' }
+
+# read protocol file
+f = open('ORANGE_cloning_protocol.txt', 'r')
+protocol =f.read()
+protocol_pane = pn.pane.Markdown (protocol)
+documentation_pane = pn.pane.Markdown("""
+    
+""")
+
+""" 
+Create widget elements
+"""
+
+app = pn.template.BootstrapTemplate(title='ORANGE Knock-In Design App (ORKID App)')
+# input text box
+text_box = pn.widgets.TextAreaInput(name='',value='TCGGTCTTTTCTGATACACCCATTGTGGTGTGAgcagtataggctgatggggaggttctgccccaggagaggtagtgtac', height=150)
+
+# selection options
+selectPlasmid = pn.widgets.Select(name='Select plasmid', options = plasmids)
+selectTag = pn.widgets.Select(name='Select tag', options = donorTags)
+selectLocation = pn.widgets.Select(name = 'Select location of integration', options = location)
+selectLinker = pn.widgets.Select(name = 'Select linker', options = linkers)
+select5RE = pn.widgets.Select(name = 'Select 5\' restriction site',  options = restrictionSites)
+select3RE = pn.widgets.Select(name = 'Select 3\' restriction site',  options = restrictionSites)
+
+# output sections 
+guideRNAs = pn.pane.Markdown(value='', style={'font-family': "Courier", 'background-color':'rgba(0, 0, 0, 0.0470588)'})
+resultSection1 = pn.pane.Markdown(value='',  style={'font-family': "Courier", 'background-color':'rgba(0, 0, 0, 0.0470588)'})
+resultSection2 = pn.pane.Markdown(value='',  style={'font-family': "Courier", 'background-color':'rgba(0, 0, 0, 0.0470588)'})
+resultSection3 = pn.pane.Markdown(value='', raw=False, style={'font-family': "Courier", 'overflow-y': 'auto'})
+resultSection4 = pn.pane.Markdown(value='', raw=False, style={'font-family': "Courier", 'overflow-y': 'auto'})
+
+# on button to trigger PAM/target search 
+button = pn.widgets.Button(name='Find targets!', button_type='success')
+
+# create window for sequence alignment
+bokeh_pane = pn.pane.Bokeh()
+
+# define results table that will hold all information on the target sequences
+resultsTable = pd.DataFrame()
+resultsTablePane = pn.widgets.Tabulator(resultsTable, layout='fit_data')
+
+
+
+""" 
+Define functions
+"""
+
+def get_colors(seqs):
+    """make colors for bases in sequence"""
+    text = [i for s in list(seqs) for i in s]
+    clrs =  {'.': 'white', 'A':'#374649', 'T': '#374649', 'C': '#374649', 'G': '#374649','-':'white','a':'#B5DAFE','t':'#B5DAFE','g':'#B5DAFE','c':'#B5DAFE', ' ':'white'}
+    colors = [clrs[i] for i in text]
+    return colors
+
+def view_alignment(aln, fontsize="9pt", plot_width=800):
+    """Bokeh sequence alignment view"""
+
+    #make sequence and id lists from the aln object
+    seqs = [rec.seq for rec in (aln)]
+    ids = [rec.id for rec in aln]    
+    text = [i for s in list(seqs) for i in s]
+    colors = get_colors(seqs)    
+
+    N = len(seqs[0])
+    S = len(seqs)    
+    width = .4
+
+    x = np.arange(1,N+1)
+    y = np.arange(0,S,1)
+    #creates a 2D grid of coords from the 1D arrays
+    xx, yy = np.meshgrid(x, y)
+    #flattens the arrays
+    gx = xx.ravel()
+    gy = yy.flatten()
+    #use recty for rect coords with an offset
+    recty = gy+.5
+    h= 1/S
+    # now we can create the ColumnDataSource with all the arrays
+    # source = ColumnDataSource(dict(x=gx, y=gy, recty=recty, text=text))
+    # Create a dictionary of data
+    #data = dict(x=gx, y=gy, recty=recty, text=text)
+
+    # Create a ColumnDataSource object
+    source = ColumnDataSource(dict(x=gx, y=gy, recty=recty, text=text, colors=colors))
+
+    plot_height = S*15+50
+    x_range = Range1d(0,N+1, bounds='auto')
+    if N>100:
+        viewlen=100
+    else:
+        viewlen=N
+    #view_range is for the close up view
+    view_range = (0,viewlen)
+    tools="xpan, xwheel_zoom, reset, save"
+
+    #entire sequence view (no text, with zoom)
+    p = figure(title=None, width= plot_width, height=50,
+               x_range=x_range, y_range=(0,S), tools=tools,
+               min_border=0, toolbar_location='below')
+    rects = Rect(x="x", y="recty",  width=1, height=1, fill_color="colors",
+                 line_color=None, fill_alpha=0.6)
+    p.add_glyph(source, rects)
+    p.yaxis.visible = False
+    p.grid.visible = False  
+
+    #sequence text view with ability to scroll along x axis
+    p1 = figure(title=None, width=plot_width, height=plot_height,
+                x_range=view_range, y_range=ids, tools="pan, reset",
+                min_border=0, toolbar_location='below')#, lod_factor=1)          
+    glyph = Text(x="x", y="y", text="text", text_align='center',text_color="black",
+                text_font="Courier",text_font_size=fontsize)
+    rects = Rect(x="x", y="recty",  width=1, height=1, fill_color="colors",
+                line_color=None, fill_alpha=0.4)
+    p1.add_glyph(source, glyph)
+    p1.add_glyph(source, rects)
+
+    p1.grid.visible = False
+    p1.xaxis.major_label_text_font_style = "bold"
+    p1.yaxis.minor_tick_line_width = 0
+    p1.yaxis.major_tick_line_width = 0
+
+    p = gridplot([[p],[p1]], toolbar_location='below')
+    return p
+
+def rulerString(maxLen):
+    " return line with positions every 10 chars "
+    texts = []
+    for i in range(0, maxLen, 10):
+        numStr = str(i)
+        texts.append(numStr)
+        spacer = "".join(["."]*(10-len(numStr)))
+        texts.append(spacer)
+    return "".join(texts)
+
+def spaceTranslation(orf):
+    translation = Seq(orf).translate()
+    spacedTranslation = ' '
+    for i in translation:
+        spacedTranslation = spacedTranslation + i +'  '
+    return(spacedTranslation[: -1])
+
+def findStopCodon(sequence):
+    stop_codons = ['TAA', 'TAG', 'TGA']
+    stop_index = 0 #len(sequence)
+    for stop_codon in stop_codons:
+        stop_codon_index = sequence.find(stop_codon)
+        if stop_codon_index != -1 and stop_codon_index > stop_index:
+            stop_index = stop_codon_index
+
+    return stop_index
+
+def findSubstr(pattern, string):
+    a = [m.start() for m in re.finditer(
+        '(?={0})'.format(re.escape(pattern)), string)]
+    return a
+
+def designDonor(target, Cas9CutSiteFrame, strand): 
+    senseRS = "aagctt"      # HindIII 
+    antisenseRS = "acgcgt"  # MluI
+    linkerRS1 = 'gctagcggagccacc'    # linker with NheI and Kozak sequence
+    linkerRS2 = 'agcgct'    # AfeI
+    donorTag = selectTag.value
+    linker = selectLinker.value
+    
+    if strand == 'plus':
+        if Cas9CutSiteFrame == 0:
+            upstream_filler = "t"
+            downstream_filler = ""
+        elif Cas9CutSiteFrame == 1:
+            upstream_filler = ""
+            downstream_filler = "c"
+        elif Cas9CutSiteFrame == 2:
+            upstream_filler = "at"
+            downstream_filler = "at"
+
+        # N-terminal integration
+        if selectLocation.value == 1:           
+            donorSeq = "".join(['ata', 
+                                senseRS,
+                                'ccc',
+                                str(Seq(target).reverse_complement()).lower(),
+                                upstream_filler,
+                                linkerRS1,
+                                'ATG',          # add START
+                                donorTag,
+                                linker,
+                                linkerRS2,
+                                downstream_filler,
+                                'ccc',
+                                str(Seq(target).reverse_complement()),
+                                antisenseRS,
+                                'ata'])
+        # internal integration
+        elif selectLocation.value == 2: 
+            donorSeq = "".join(['ata', 
+                                senseRS,
+                                'ccc',
+                                str(Seq(target).reverse_complement()),
+                                upstream_filler,
+                                linkerRS1,
+                                linker,
+                                donorTag,
+                                linker,
+                                linkerRS2,
+                                downstream_filler,
+                                'ccc',
+                                str(Seq(target).reverse_complement()),
+                                antisenseRS,
+                                'ata'])
+        # C-terminal fusion
+        elif selectLocation.value == 3: 
+            donorSeq = "".join(['ata', 
+                                senseRS,
+                                'ccc',
+                                str(Seq(target).reverse_complement()),
+                                upstream_filler,
+                                linkerRS1,
+                                linker,
+                                donorTag,
+                                'TGA',
+                                linkerRS2,
+                                downstream_filler,
+                                'ccc',
+                                str(Seq(target).reverse_complement()).lower(),
+                                antisenseRS,
+                                'ata'])
+    elif strand == 'minus':
+        if Cas9CutSiteFrame == 0:
+            upstream_filler = ""
+            downstream_filler = "t"
+        elif Cas9CutSiteFrame == 1:
+            upstream_filler = "ac"
+            downstream_filler = "ac"
+        elif Cas9CutSiteFrame == 2:
+            upstream_filler = "a"
+            downstream_filler = ""
+        # N-terminal integration
+        if selectLocation.value == 1:           
+            donorSeq = "".join(['ata', 
+                                senseRS,
+                                str(target),
+                                'ggg',
+                                upstream_filler,
+                                linkerRS1,
+                                'ATG',          # add START
+                                donorTag,
+                                linker,
+                                linkerRS2,
+                                downstream_filler,
+                                str(target),
+                                'ggg',
+                                antisenseRS,
+                                'ata'])
+        # internal integration
+        elif selectLocation.value == 2: 
+            donorSeq = "".join(['ata', 
+                                senseRS,
+                                str(target),
+                                'ggg',
+                                upstream_filler,
+                                linkerRS1,
+                                linker,
+                                donorTag,
+                                linker,
+                                linkerRS2,
+                                downstream_filler,
+                                str(target),
+                                'ggg',
+                                antisenseRS,
+                                'ata'])
+        # C-terminal fusion
+        elif selectLocation.value == 3: 
+            donorSeq = "".join(['ata', 
+                                senseRS,
+                                str(target),
+                                'ggg',
+                                upstream_filler,
+                                linkerRS1,
+                                linker,
+                                donorTag,
+                                'TGA',
+                                linkerRS2,
+                                downstream_filler,
+                                str(target),
+                                'ggg',
+                                antisenseRS,
+                                'ata'])
+            
+    return(str(donorSeq))
+
+def colorizeProteinSequence(s):
+    colors = {'*': 'black', '-': 'white', 'a': 'red', 't': 'red', 'g': 'red', 'c': 'red', ' ': 'white', '.': 'white',
+              'G': 'grey', 'A': 'grey', 'S': 'grey', 'T': 'grey',  # small nonpolar
+              'C': 'green', 'V': 'green', 'I': 'green', 'L': 'green', 'P': 'green', 'F': 'green', 'Y': 'green',
+              'M': 'green', 'W': 'green',  # hydrophobic
+              'N': 'magenta', 'Q': 'magenta', 'H': 'magenta',  # polar
+              'D': 'red', 'E': 'red',  # negatively charged
+              'K': 'red', 'R': 'red'}  # positively charged
+
+    colorized = ''
+    for c in s:
+        color = colors.get(c, 'black')
+        colorized += f'<span style="color:{color};">{c}</span>'
+    return colorized
+
+def findPAM(event):
+    """
+    search for PAM sites in the input sequence, select and annotate target sequences
+    output is a dataframe holding information on target sequence, accompanying donor sequence and resulting genomic locus after editing
+    """
+    
+    guideRNAs.object =''
+    resultSection1.object =''
+    resultSection2.object =''
+    resultSection3.object =''
+    resultSection4.object =''
+
+    # take input sequence and build alignment for the bokeh pane
+    inputSequence = text_box.value
+    aln=''
+    aln = MultipleSeqAlignment([
+        SeqRecord(Seq(inputSequence).complement(), id='minus strand'),     
+        SeqRecord(Seq(inputSequence), id='plus strand'),
+             ])
+    bokeh_pane.object = view_alignment(aln, fontsize="11pt",plot_width=900)
+
+    global resultsTable
+    resultsTable = pd.DataFrame()
+
+    # find reading frame in input sequence
+    if selectLocation.value == 1:               # N-terminal integration: expect ATG
+        frame = inputSequence.find('ATG')
+        if frame == -1: pn.state.notifications.send('Could not find a start codon', background='red', icon='<i class="fas fa-burn"></i>')
+    elif selectLocation.value == 2:             # internal integration: coding sequence is expected to start at beginning of sequence
+        frame = 0 
+    elif selectLocation.value == 3:             # C-terminal integration: take last capital expect TGA, TAA or TAG
+        first_capital = re.search('[A-Z]', inputSequence).start()
+        last_capital = re.search('[A-Z](?!.*[A-Z])', inputSequence).start()-1
+        stop = last_capital-2 
+        if findStopCodon(inputSequence[stop-1:stop+5]) == 0: pn.state.notifications.send('Could not find a stop codon', background='red', icon='<i class="fas fa-burn"></i>')
+        d = stop/3
+        frame = round((d - math.floor(d)) * 3)
+        
+    """    
+    Find PAM and target sequences in PLUS strand, add to dataframe
+    
+    """  
+
+    pattern = '(?=(?P<match>[A-Z]GG))'
+    matches = re.finditer(pattern, string=inputSequence.upper())
+    
+    indices = [index.start() for index in matches]
+
+    for index in indices:
+        # target sequence
+        target = inputSequence[index-20:index].upper()
+        
+        if len(target) == 20:   
+            # find Cas9 cut site
+            Cas9CutSite = index-3
+            x = (Cas9CutSite - frame)/3
+            Cas9CutSiteFrame = round((x - math.floor(x)) * 3)
+
+            # PAM sequence
+            pamSequence = inputSequence[index:index + 3]
+            # pad sequence and add to alignment
+            paddedPam = '-'*index + pamSequence + (len(inputSequence)-index -3)*'-'
+            aln.append(SeqRecord(Seq(paddedPam), id=str(index)+' (+)'))
+            # gRNA primer sequences
+            overhangSense = selectPlasmid.value
+            gRNA_s = str(overhangSense + target)
+            gRNA_as = str("AAAC" + Seq(target).reverse_complement() + "C")
+
+            # donor sequence
+            donorSequence = designDonor(target, Cas9CutSiteFrame, 'plus')
+            editedGenomeSequence = inputSequence[:Cas9CutSite] + donorSequence[15:-26] + inputSequence[Cas9CutSite:]
+
+            resultsTable = resultsTable.append(pd.DataFrame({'PAM':[pamSequence],
+                        'strand':['plus'],
+                        'position':[index],
+                        'target sequence':[target],
+                        'Cas9 cut site':[Cas9CutSite],
+                        'target primer forward':[gRNA_s],
+                        'target primer reverse':[gRNA_as],
+                        'frame':['+' + str(Cas9CutSiteFrame)],
+                        'donor':[donorSequence],
+                        'edited genome':[editedGenomeSequence]}))
+
+
+    """    
+    Find PAM and target sequences in MINUS strand, add to dataframe
+    """    
+    l = len(inputSequence)-1
+    sequence_rc = Seq(inputSequence).reverse_complement()
+    sequence_rc = str(sequence_rc)
+    sequence_rc_upper = sequence_rc.upper()
+    pattern = '(?=(?P<match>[A-Z]GG))'
+    matches = re.finditer(pattern, string=sequence_rc_upper)
+    indices = [index.start() for index in matches]
+
+    for index in indices:
+        # find target sequence
+        target = sequence_rc_upper[index-20:index]
+
+        if len(target) == 20:
+            # find Cas9 cut site
+            Cas9CutSite = len(inputSequence)-index+3
+            x = (Cas9CutSite - frame)/3
+            Cas9CutSiteFrame = round((x - math.floor(x)) * 3)
+        
+
+            # PAM sequence
+            pamSequence = sequence_rc[index:index + 3]
+            # pad sequence and add to alignment
+            position = len(inputSequence) - index - 3
+            paddedPam = (len(inputSequence)-index -3)*'-' +  str(Seq(pamSequence).reverse_complement()) + '-'*index
+            aln.append(SeqRecord(Seq(paddedPam), id=str(position)+' (-)'))
+            # gRNA primer sequences
+            overhangSense = selectPlasmid.value
+            gRNA_s = str(overhangSense + target)
+            gRNA_as = str("AAAC" + Seq(target).reverse_complement() + "C")
+        
+            # donor sequence
+            donorSequence = designDonor(target, Cas9CutSiteFrame, 'minus')
+            editedGenomeSequence = inputSequence[:Cas9CutSite] + donorSequence[26:-15] + inputSequence[Cas9CutSite:]
+
+            resultsTable = resultsTable.append(pd.DataFrame({'PAM':[pamSequence],
+                    'strand':['minus'],
+                    'position':[position],
+                    'target sequence':[str(target)],
+                    'Cas9 cut site':[Cas9CutSite],
+                    'target primer forward':[gRNA_s],
+                    'target primer reverse':[gRNA_as],
+                    'frame':['+' + str(Cas9CutSiteFrame)],
+                    'donor':[donorSequence],
+                    'edited genome':[editedGenomeSequence]}))
+    
+        
+    id = list(range(len(resultsTable.index)))
+    resultsTable.index = id
+    resultsTablePane.value = resultsTable[['PAM','strand', 'position', 'target sequence', 'frame']]
+    bokeh_pane.object = view_alignment(aln, fontsize="11pt",plot_width=900)
+    pn.state.notifications.info(f"""Found {max(id)+1} PAM sites. Select one in the table to get more info.""")
+    return resultsTable
+
+def selectTarget(event):
+    idx = event.row
+    data = resultsTable.loc[idx]
+
+    # output the selected target primers
+    target = data['target sequence']
+    forward = data['target primer forward']
+    reverse = data['target primer reverse']
+
+    guideRNAs.object = f"""    
+
+    <span style='font-family:Arial'>**Selected target sequence:**</span> <span style='color:#438FFF'>{target}</span>      
+
+    <span style='font-family:Arial'>**Guide RNA design:**</span>   
+    5'-{forward[0:5]}<span style='color:#438FFF'>{forward[5:]}</span>....-3'    
+    3'-....{data['target primer reverse'][::-1]}-5'   
+     
+    <span style='font-family:Arial'>**Target primer forward:**</span> 5'-{forward}-3'                             
+    <span style='font-family:Arial'>**Target primer reverse:**</span> 5'-{reverse}-3'   
+    """
+        
+    # find the coding sequence of the input sequence before integration
+    inputSequence = text_box.value 
+    first_capital = re.search('[A-Z]', inputSequence).start()
+    last_capital = re.search('[A-Z](?!.*[A-Z])', inputSequence).start()
+    if selectLocation.value == 1:
+        frame = inputSequence.find('ATG')
+        start = frame
+        stop = start + (math.floor((len(inputSequence)-start)/3) * 3)
+    elif selectLocation.value == 2:
+        start = first_capital
+        stop = last_capital
+    elif selectLocation.value == 3:
+        stop = last_capital-2 
+        d = stop/3
+        frame = round((d - math.floor(d)) * 3)
+        start = first_capital+frame
+        stop = stop + 3
+    
+
+    codingGOI = inputSequence[start:stop]
+    paddedTranslationInput = ' '*start + spaceTranslation(codingGOI) + (len(inputSequence)-stop)*' '
+   
+    # find the coding sequence after integration
+    editedGenomicSeq = data['edited genome']
+    editedGenomicSeq = editedGenomicSeq.replace(' ', '')
+    first_capital = re.search('[A-Z]', editedGenomicSeq).start()
+    last_capital = re.search('[A-Z](?!.*[A-Z])', editedGenomicSeq).start()
+    
+    if selectLocation.value == 1:
+        frame = editedGenomicSeq.find('ATG')
+        start = frame
+        stop = start + (math.floor((len(editedGenomicSeq)-start)/3) * 3)
+    elif selectLocation.value == 2:
+        start = first_capital
+        stop = last_capital
+    elif selectLocation.value == 3:
+        stop = findStopCodon(editedGenomicSeq)
+        d = (stop - first_capital)/3
+        frame = round((d - math.floor(d)) * 3)
+        start = first_capital+frame
+        stop = stop + 3
+
+
+    tag = selectTag.value
+    a = editedGenomicSeq.find(tag)
+    start = a-(math.floor(a/3)*3)
+    stop = (math.floor((len(editedGenomicSeq)-start)/3) * 3)
+    coding = editedGenomicSeq[start:stop]
+    
+    paddedCoding = ' '*start +  coding + (len(editedGenomicSeq)-stop)*' '
+    paddedTranslation = ' '*start + spaceTranslation(coding) + (len(editedGenomicSeq)-stop)*' '
+   
+
+    # ouput anotated donor sequence
+    donorSeq = data['donor'].upper()
+    donorSeq = donorSeq.replace(' ', '')
+    donorSeqRC = str(Seq(donorSeq).complement())
+   
+    # create a Markdown object with the annotated donor sequence
+    if data['strand'] == 'plus':
+        annotatedDonor = f"""  
+        <span style='font-family:Arial'>**Donor sequence design:**</span>   
+        5'-{donorSeq[0:50]}.....{donorSeq[-50:-1]}-3'    
+        3'-{donorSeqRC[0:9]}<span style='color:red'>{donorSeqRC[9:12]}</span><span style='color:#438FFF'>{donorSeqRC[12:32]}</span>{donorSeqRC[32:50]}.....{donorSeqRC[-50:-32]}</span><span style='color:red'>{donorSeqRC[-32:-29]}</span></span><span style='color:#438FFF'>{donorSeqRC[-29:-9]}</span>{donorSeqRC[-9:-1]}-5' 
+                            
+        <span style='font-family:Arial'>**Donor primer forward:**</span> 5'-{donorSeq[0:60]}-3'   
+        <span style='font-family:Arial'>**Donor primer reverse:**</span> 5'-{donorSeqRC[-61:-1][::-1]}-3'
+
+                            """
+    elif data['strand']=='minus':
+        annotatedDonor = f"""  
+        <span style='font-family:Arial'>**Donor sequence design:**</span>  
+        5' {donorSeq[0:9]}<span style='color:#438FFF'>{donorSeq[9:29]}</span><span style='color:red'>{donorSeq[29:32]}</span>{donorSeq[32:50]}.....{donorSeq[-50:-32]}<span style='color:#438FFF'>{donorSeq[-32:-12]}</span></span><span style='color:red'>{donorSeq[-12:-9]}</span>{donorSeq[-9:-1]}-3'    
+        3' {donorSeqRC[0:50]}</span>.....{donorSeqRC[-50:-1]}-3'  
+                            
+        <span style='font-family:Arial'>**Donor primer forward:**</span> 5'-{donorSeq[0:60]}-3'   
+        <span style='font-family:Arial'>**Donor primer reverse:**</span> 5'-{donorSeqRC[-61:-1][::-1]}-3'
+                            """
+        
+    # create a Markdown object with the annotated locus after integration
+    translationInput = str(Seq(codingGOI).translate(to_stop=True))
+
+    tag = selectTag.value
+    a = editedGenomicSeq.find(tag)
+    b = a + len(tag)
+
+    cut = data['Cas9 cut site']
+    pam = data['PAM']
+    cutIndicator =' '*(cut-1) + "><"
+    editedGenomicSeq = editedGenomicSeq.upper()
+    inputSequence = inputSequence.upper()
+
+    if data['strand'] == 'plus':
+        inputSequence = inputSequence.replace(target, f"<span style='color:#438FFF'>{target}</span>")
+    elif data['strand'] == 'minus':
+        rcT = str(Seq(target).reverse_complement())
+        inputSequence =inputSequence.replace(rcT, f"<span style='color:#438FFF''>{rcT}</span>")
+        
+    annotatedLocus = f"""    
+
+        <span style='font-family:Arial'>**Locus before integration:**</span>    
+        {cutIndicator}   
+        {inputSequence}   
+        {paddedTranslationInput} 
+
+        <span style='font-family:Arial'>**Locus after integration of donor:**</span>   
+
+        <span style='font-family:Arial'>**Upstream of donor: **</span>   
+        5'-{editedGenomicSeq[a-50:a-3]}<span style='color:green'>{editedGenomicSeq[a-3:a+15]}</span>....-3'  
+           {paddedTranslation[a-50:a+15]}   
+
+        <span style='font-family:Arial'>**Downstream of donor:**</span>   
+        5'-....<span style='color:green'>{editedGenomicSeq[b-15:b]}</span>{editedGenomicSeq[b:b+60]}-3'  
+               {paddedTranslation[b-15:b+60]}   
+
+                    
+           
+                          """
+
+    #donorPanel = f"""donor sequence: <span style='word-wrap:break-word;width:500px'>{donorSeq}</span>"""             
+    donorSeq = donorSeq.replace(tag, f"<span style='color:green'>{tag}</span>")
+    editedGenomicSeq = editedGenomicSeq.replace(tag, f"<span style='color:green'>{tag}</span>")
+    resultSection1.object = annotatedDonor
+    resultSection2.object = annotatedLocus
+    resultSection3.object = f"""<span style='font-family:Arial'>**Donor sequence:**</span> <span style='word-wrap:break-word;width:500px'>{donorSeq}</span>"""             
+    resultSection4.object = f"""<span style='font-family:Arial'>**Genomic sequence after integration:**</span> <span style='word-wrap:break-word;width:500px'>{editedGenomicSeq}</span>""" 
+    # show anotated genomic sequence after integration
+
+
+"""
+Set up the layout of the App
+"""
+
+button.on_click(findPAM)
+resultsTablePane.on_click(selectTarget) 
+app.sidebar.append(pn.Column(pn.pane.Markdown("#### **Enter genomic sequence**"),text_box,pn.pane.Markdown("#### **Settings**"),selectPlasmid,selectTag, selectLocation, selectLinker, button))
+app.main.append(pn.Tabs(('Select target', pn.Column(bokeh_pane, resultsTablePane,guideRNAs, resultSection1,resultSection2, resultSection3,resultSection4)), 
+                        ('Cloning protocol', protocol_pane),
+                        ('Documentation', documentation_pane)))
+# app.show()
+
+app.servable()
